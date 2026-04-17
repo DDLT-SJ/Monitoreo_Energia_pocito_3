@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Control MQTT - Pocito</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      padding: 12px;
+      color: #fff;
+    }
+
+    .container {
+      max-width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 1.2rem;
+      color: #00d9ff;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel h2 {
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+      color: #00d9ff;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      margin-bottom: 4px;
+      opacity: 0.7;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 0.85rem;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #00d9ff;
+    }
+
+    .password-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .password-wrapper input {
+      padding-right: 40px;
+      width: 100%;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      opacity: 0.7;
+    }
+
+    .toggle-password:hover {
+      opacity: 1;
+    }
+
+    .pines-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .pin-control {
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .pin-control label {
+      display: block;
+      font-size: 0.7rem;
+      margin-bottom: 4px;
+      line-height: 1.2;
+    }
+
+    .pin-control select {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: none;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .pin-control select.normal {
+      background: #2e7d32;
+      color: #fff;
+    }
+
+    .pin-control select.falla {
+      background: #c62828;
+      color: #fff;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-enviar {
+      background: #00d9ff;
+      color: #1a1a2e;
+    }
+
+    .btn-enviar:hover {
+      background: #33e0ff;
+    }
+
+    .btn-enviar:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    .status.ok {
+      background: rgba(0,255,136,0.2);
+      color: #00ff88;
+    }
+
+    .status.error {
+      background: rgba(255,68,68,0.2);
+      color: #ff4444;
+    }
+
+    .status.enviando {
+      background: rgba(0,217,255,0.2);
+      color: #00d9ff;
+    }
+
+    .log {
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 0.7rem;
+      max-height: 150px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+      padding: 4px;
+      border-radius: 3px;
+    }
+
+    .log-entry.ok { background: rgba(0,255,136,0.1); color: #00ff88; }
+    .log-entry.error { background: rgba(255,68,68,0.1); color: #ff4444; }
+    .log-entry.ntfy { background: rgba(255,170,0,0.1); color: #ffaa00; }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .checkbox-group label {
+      margin: 0;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📡 Panel Control MQTT</h1>
+
+    <!-- CONFIGURACIÓN -->
+    <div class="panel">
+      <h2>📶 Conexión HiveMQ</h2>
+      <div class="form-group">
+        <label>Host</label>
+        <input type="text" id="mqttHost" value="748863d67a8940b8957fbc4523ac7f5d.s1.eu.hivemq.cloud">
+      </div>
+      <div class="form-group">
+        <label>Puerto WebSocket</label>
+        <input type="number" id="mqttPort" value="8884">
+      </div>
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="mqttUser" value="Daniel_SJ">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <div class="password-wrapper">
+          <input type="password" id="mqttPass" value="Ddelatorre1966">
+          <button type="button" class="toggle-password" onclick="togglePassword()">👁️</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Topic Principal</label>
+        <input type="text" id="mqttTopic" value="Energia/Pocito">
+      </div>
+    </div>
+
+    <!-- ENTRADAS DIGITALES -->
+    <div class="panel">
+      <h2>🔌 Entradas (P0-P7)</h2>
+      <div class="pines-grid">
+        <div class="pin-control">
+          <label>P0 Ent. Princ.</label>
+          <select id="pin0" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P1 Sal. Princ.</label>
+          <select id="pin1" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P2 Sobrev.</label>
+          <select id="pin2" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P3 Diferenc.</label>
+          <select id="pin3" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P4 Heladera</label>
+          <select id="pin4" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P5 Cámaras</label>
+          <select id="pin5" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P6 Bombas</label>
+          <select id="pin6" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+        <div class="pin-control">
+          <label>P7 Piscina</label>
+          <select id="pin7" class="normal">
+            <option value="0" selected>🟢 Normal</option>
+            <option value="1">🔴 FALLA</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENTRADAS DIGITALES -->
+    <div class="panel">
+      <h2>🔔 Notificaciones Ntfy.sh</h2>
+      <div class="checkbox-group">
+        <input type="checkbox" id="enviarNtfy" checked>
+        <label for="enviarNtfy">Notificar cambios de estado</label>
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="notificarInicio">
+        <label for="notificarInicio">Notificar inicio del sistema</label>
+      </div>
+    </div>
+
+    <button class="btn btn-enviar" id="btnEnviar" onclick="enviarDatos()">📤 ENVIAR A MQTT + NTFY</button>
+
+    <div class="status" id="status"></div>
+
+    <!-- LOG -->
+    <div class="panel">
+      <h2>📋 Log de Envíos</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    let mqttClient = null;
+
+    // Cambiar color del select al cambiar estado
+    document.querySelectorAll('select[id^="pin"]').forEach(select => {
+      select.addEventListener('change', function() {
+        if (this.value === "1") {
+          this.className = "falla";
+        } else {
+          this.className = "normal";
+        }
+      });
+    });
+
+    // Toggle mostrar/ocultar contraseña
+    function togglePassword() {
+      const input = document.getElementById('mqttPass');
+      const btn = document.querySelector('.toggle-password');
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = '🙈';
+      } else {
+        input.type = "password";
+        btn.textContent = '👁️';
+      }
+    }
+
+    function log(mensaje, tipo = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + tipo;
+      entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + mensaje;
+      logDiv.insertBefore(entry, logDiv.firstChild);
+    }
+
+    function mostrarStatus(mensaje, tipo) {
+      const status = document.getElementById('status');
+      status.textContent = mensaje;
+      status.className = 'status ' + tipo;
+    }
+
+    // Estados anteriores para detectar cambios
+    let estadosAnteriores = [0, 0, 0, 0, 0, 0, 0, 0];
+
+    // Nombres de pines (igual que el sketch)
+    const PIN_NOMBRES = [
+      "Entrada Interruptor Principal",
+      "Salida Interruptor Principal",
+      "Salida Interruptor Sobrevoltaje",
+      "Salida Interruptor Diferencial",
+      "Salida Interruptor Heladera",
+      "Salida Interruptor Cámaras",
+      "Salida Interruptor Bombas Principales",
+      "Salida Interruptor Bomba Piscina"
+    ];
+
+    // Enviar notificación a Ntfy.sh
+    async function enviarNtfy(titulo, mensaje, prioridad, emoji) {
+      const ntfyUrl = 'https://ntfy.sh/Monitor_Energia_Pocito';
+      
+      try {
+        const response = await fetch(ntfyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Title': titulo,
+            'Priority': prioridad,
+            'Tags': emoji
+          },
+          body: mensaje
+        });
+        
+        if (response.ok) {
+          log('Ntfy: ' + titulo, 'ntfy');
+          return true;
+        } else {
+          log('Ntfy ERROR: HTTP ' + response.status, 'error');
+          return false;
+        }
+      } catch (error) {
+        log('Ntfy ERROR: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    // Detectar cambios y enviar notificaciones
+    async function detectarCambiosYNotificar() {
+      const enviarNtfyCheck = document.getElementById('enviarNtfy').checked;
+      if (!enviarNtfyCheck) return;
+
+      let huboCambio = false;
+      
+      for (let i = 0; i < 8; i++) {
+        const valorActual = parseInt(document.getElementById('pin' + i).value);
+        const valorAnterior = estadosAnteriores[i];
+        
+        if (valorActual !== valorAnterior) {
+          huboCambio = true;
+          
+          if (valorActual === 1) {
+            // FALLA: Corte de energía
+            await enviarNtfy(
+              'FALLA DE ENERGIA POCITO',
+              'Corte de energia en ' + PIN_NOMBRES[i],
+              'default',
+              'red_circle'
+            );
+          } else {
+            // REPOSICIÓN: Energia restaurada
+            await enviarNtfy(
+              'REPOSICION DE ENERGIA POCITO',
+              'Reposicion de energia en ' + PIN_NOMBRES[i],
+              'default',
+              'green_circle'
+            );
+          }
+          
+          // Actualizar estado anterior
+          estadosAnteriores[i] = valorActual;
+        }
+      }
+      
+      if (huboCambio) {
+        log('Notificaciones enviadas para cambios detectados', 'ok');
+      }
+    }
+
+    async function enviarDatos() {
+      const btn = document.getElementById('btnEnviar');
+      const host = document.getElementById('mqttHost').value;
+      const port = document.getElementById('mqttPort').value;
+      const user = document.getElementById('mqttUser').value;
+      const pass = document.getElementById('mqttPass').value;
+      const topic = document.getElementById('mqttTopic').value;
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Conectando...';
+      mostrarStatus('Conectando a HiveMQ...', 'enviando');
+      log('Iniciando conexión a ' + host + ':' + port);
+
+      try {
+        // Conectar MQTT
+        const url = `wss://${host}:${port}/mqtt`;
+        mqttClient = mqtt.connect(url, {
+          username: user,
+          password: pass,
+          clientId: 'PanelControl_' + Math.random().toString(16).substr(2, 8),
+          clean: true,
+          reconnectPeriod: 5000
+        });
+
+        // Esperar conexión
+        await new Promise((resolve, reject) => {
+          mqttClient.on('connect', () => {
+            log('Conectado a MQTT', 'ok');
+            resolve();
+          });
+          
+          mqttClient.on('error', (err) => {
+            log('Error de conexión: ' + err.message, 'error');
+            reject(err);
+          });
+
+          setTimeout(() => reject(new Error('Timeout de conexión')), 10000);
+        });
+
+        btn.textContent = '⏳ Enviando...';
+        mostrarStatus('Enviando datos...', 'enviando');
+
+        // Claves JSON (igual que el sketch del ESP32)
+        const PIN_KEYS = [
+          "termo_principal_ent",
+          "termo_principal_sal",
+          "protec_sobrevoltaje",
+          "diferencial",
+          "termo_comedor_tomas",
+          "termo_comedor_ilum",
+          "termo_bombas_pozo",
+          "termo_bomba_pileta"
+        ];
+
+        // Construir JSON de entradas (mismo formato que ESP32)
+        let jsonEntradas = '{';
+        for (let i = 0; i < 8; i++) {
+          const valor = document.getElementById('pin' + i).value;
+          jsonEntradas += '"' + PIN_KEYS[i] + '":' + valor;
+          if (i < 7) jsonEntradas += ',';
+        }
+        jsonEntradas += '}';
+
+        // Publicar entradas
+        mqttClient.publish(topic, jsonEntradas);
+        log('Entradas enviadas: ' + jsonEntradas, 'ok');
+
+        // Cerrar conexión
+        mqttClient.end();
+        mqttClient = null;
+
+        // Detectar cambios y enviar notificaciones Ntfy
+        await detectarCambiosYNotificar();
+
+        // Notificación de inicio si está marcada la opción
+        const notificarInicioCheck = document.getElementById('notificarInicio').checked;
+        if (notificarInicioCheck) {
+          await enviarNtfy(
+            'Sistema iniciado',
+            'Monitor Energia Pocito en linea\nPanel de control enviado manualmente',
+            'low',
+            'white_check_mark'
+          );
+        }
+
+        btn.textContent = '📤 ENVIAR A MQTT + NTFY';
+        btn.disabled = false;
+        mostrarStatus('✅ Datos enviados correctamente', 'ok');
+        log('Envío completado', 'ok');
+
+      } catch (error) {
+        btn.textContent = '📤 ENVIAR A MQTT';
+        btn.disabled = false;
+        mostrarStatus('❌ Error: ' + error.message, 'error');
+        log('Error: ' + error.message, 'error');
+        
+        if (mqttClient) {
+          mqttClient.end();
+          mqttClient = null;
+        }
+      }
+    }
+  </script>
+</body>
+</html>

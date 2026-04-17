@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor Energía Pocito</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Energía Pocito">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #fff;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 1.5rem;
+      color: #00d9ff;
+    }
+
+    .status-bar {
+      background: rgba(255,255,255,0.1);
+      padding: 10px 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #808080;
+      animation: pulse 1s infinite;
+    }
+
+    .led.connected {
+      background: #00ff88;
+    }
+
+    .led.error {
+      background: #ff4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .entradas-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .entrada-card {
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s ease;
+      border-left: 4px solid #ff4444;
+    }
+
+    .entrada-card.normal {
+      border-left-color: #00ff88;
+      background: rgba(0,255,136,0.1);
+    }
+
+    .entrada-card.falla {
+      border-left-color: #ff4444;
+      background: rgba(255,68,68,0.1);
+    }
+
+    .entrada-card.desconectado {
+      border-left-color: #808080;
+      background: rgba(128,128,128,0.1);
+    }
+
+    .entrada-info {
+      flex: 1;
+    }
+
+    .entrada-nombre {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .entrada-estado {
+      font-size: 0.8rem;
+      opacity: 0.7;
+    }
+
+    .entrada-icon {
+      font-size: 1.5rem;
+      margin-left: 15px;
+    }
+
+    .ultima-actualizacion {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.8rem;
+      opacity: 0.6;
+    }
+
+    .resumen {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .resumen-card {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .resumen-card.totales {
+      grid-column: 1;
+      grid-row: span 2;
+    }
+
+    .resumen-numero {
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    .resumen-card.totales .resumen-numero {
+      color: #00d9ff;
+    }
+
+    .resumen-card.ok .resumen-numero {
+      color: #00ff88;
+    }
+
+    .resumen-card.falla .resumen-numero {
+      color: #ff4444;
+    }
+
+    .btn-control {
+      background: rgba(0,217,255,0.2);
+      border: 1px solid #00d9ff;
+      color: #00d9ff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+      margin-left: 10px;
+    }
+
+    .btn-control:hover {
+      background: rgba(0,217,255,0.3);
+    }
+
+    .btn-control.disconnect {
+      background: rgba(255,68,68,0.2);
+      border-color: #ff4444;
+      color: #ff4444;
+    }
+
+    .btn-control.disconnect:hover {
+      background: rgba(255,68,68,0.3);
+    }
+
+    .btn-control:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚡ Monitor Energía Pocito</h1>
+
+    <div class="status-bar">
+      <div class="status-indicator">
+        <div class="led" id="mqttLed"></div>
+        <span id="mqttStatus">Desconectado</span>
+        <button class="btn-control" id="btnConnect" onclick="toggleConnection()">Conectar</button>
+      </div>
+    </div>
+
+    <div class="resumen">
+      <div class="resumen-card totales">
+        <div class="resumen-numero">TOTALES: <span id="totalEntradas">8</span></div>
+      </div>
+      <div class="resumen-card ok">
+        <div class="resumen-numero">NORMALES: <span id="entradasOk">--</span></div>
+      </div>
+      <div class="resumen-card falla">
+        <div class="resumen-numero">FALLA: <span id="entradasFalla">--</span></div>
+      </div>
+    </div>
+
+    <div class="entradas-grid" id="entradasGrid">
+      <!-- Se llena dinámicamente -->
+    </div>
+
+    <div class="ultima-actualizacion">
+      Última actualización: <span id="ultimaAct">--</span>
+    </div>
+  </div>
+
+  <!-- MQTT Over WebSocket -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <script>
+    // ========================================================================
+    // CONFIGURACIÓN - HiveMQ Cloud WebSocket
+    // ========================================================================
+    const MQTT_CONFIG = {
+      host: '748863d67a8940b8957fbc4523ac7f5d.s1.eu.hivemq.cloud',
+      port: 8884,  // WebSocket TLS
+      path: '/mqtt',
+      username: 'Daniel_SJ',
+      password: 'Ddelatorre1966',
+      clientId: 'WebDashboard_' + Math.random().toString(16).substr(2, 8),
+      topic: 'Energia/Pocito'
+    };
+
+    // ========================================================================
+    // NOMBRES DE ENTRADAS
+    // ========================================================================
+    const PIN_NOMBRES = [
+      "Entrada Interruptor Principal",
+      "Salida Interruptor Principal",
+      "Salida Interruptor Sobrevoltaje",
+      "Salida Interruptor Diferencial",
+      "Salida Interruptor Heladera",
+      "Salida Interruptor Cámaras",
+      "Salida Interruptor Bombas Principales",
+      "Salida Interruptor Bomba Piscina"
+    ];
+
+    // ========================================================================
+    // CLAVES JSON (igual que el sketch del ESP32)
+    // ========================================================================
+    const PIN_KEYS = [
+      "termo_principal_ent",
+      "termo_principal_sal",
+      "protec_sobrevoltaje",
+      "diferencial",
+      "termo_comedor_tomas",
+      "termo_comedor_ilum",
+      "termo_bombas_pozo",
+      "termo_bomba_pileta"
+    ];
+
+    // ========================================================================
+    // ESTADO
+    // ========================================================================
+    let estadoEntradas = [null, null, null, null, null, null, null, null]; // null = sin datos
+    let mqttClient = null;
+    let conexionManual = false;  // false = auto, true = forzado por usuario
+
+    // ========================================================================
+    // INICIALIZAR
+    // ========================================================================
+    function init() {
+      crearEntradasGrid();
+      actualizarBotonEstado();
+      conectarMQTT();
+      
+      // Inicializar contadores en '--' (desconectado)
+      document.getElementById('entradasOk').textContent = '--';
+      document.getElementById('entradasFalla').textContent = '--';
+      document.getElementById('uptimePercent').textContent = '--';
+    }
+
+    // ========================================================================
+    // CREAR GRID DE ENTRADAS
+    // ========================================================================
+    function crearEntradasGrid() {
+      const grid = document.getElementById('entradasGrid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 8; i++) {
+        const card = document.createElement('div');
+        card.className = 'entrada-card desconectado';
+        card.id = 'entrada-' + i;
+        card.innerHTML = `
+          <div class="entrada-info">
+            <div class="entrada-nombre">P${i} - ${PIN_NOMBRES[i]}</div>
+            <div class="entrada-estado" id="estado-${i}">--</div>
+          </div>
+          <div class="entrada-icon" id="icono-${i}">⚪</div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    // ========================================================================
+    // CONECTAR MQTT
+    // ========================================================================
+    function conectarMQTT() {
+      const url = `wss://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}${MQTT_CONFIG.path}`;
+
+      console.log('Conectando MQTT:', url);
+      console.log('Username:', MQTT_CONFIG.username);
+
+      const options = {
+        username: MQTT_CONFIG.username,
+        password: MQTT_CONFIG.password,
+        clientId: MQTT_CONFIG.clientId,
+        clean: true,
+        reconnectPeriod: 5000
+      };
+
+      mqttClient = mqtt.connect(url, options);
+
+      mqttClient.on('connect', () => {
+        console.log('MQTT Conectado');
+        document.getElementById('mqttLed').classList.add('connected');
+        document.getElementById('mqttLed').classList.remove('error');
+        document.getElementById('mqttStatus').textContent = 'Conectado';
+        mqttClient.subscribe(MQTT_CONFIG.topic);
+        actualizarBotonEstado();
+      });
+
+      mqttClient.on('reconnect', () => {
+        console.log('MQTT Reintentando...');
+      });
+
+      mqttClient.on('close', () => {
+        console.log('MQTT Conexión cerrada');
+        document.getElementById('mqttLed').classList.remove('connected');
+        document.getElementById('mqttStatus').textContent = 'Desconectado';
+        setAllEntradasDesconectado();
+        actualizarBotonEstado();
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          procesarMensaje(data);
+        } catch (e) {
+          console.error('Error parsing MQTT:', e);
+        }
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error('MQTT Error:', err);
+        document.getElementById('mqttLed').classList.remove('connected');
+        document.getElementById('mqttLed').classList.add('error');
+        document.getElementById('mqttStatus').textContent = 'Error';
+        setAllEntradasDesconectado();
+      });
+
+      mqttClient.on('offline', () => {
+        document.getElementById('mqttLed').classList.remove('connected');
+        document.getElementById('mqttStatus').textContent = 'Desconectado';
+        setAllEntradasDesconectado();
+      });
+    }
+
+    // ========================================================================
+    // PROCESAR MENSAJE MQTT
+    // ========================================================================
+    function procesarMensaje(data) {
+      // Actualizar estado de entradas (usando claves del sketch ESP32)
+      if (data.entradas) {
+        for (let i = 0; i < 8; i++) {
+          const pinKey = PIN_KEYS[i];
+          if (pinKey in data.entradas) {
+            const estado = parseInt(data.entradas[pinKey]);
+            actualizarEntrada(i, estado);
+          }
+        }
+      }
+
+      // Actualizar resumen
+      actualizarResumen();
+
+      // Actualizar timestamp
+      const now = new Date();
+      document.getElementById('ultimaAct').textContent = now.toLocaleTimeString('es-AR');
+    }
+
+    // ========================================================================
+    // ACTUALIZAR ENTRADA INDIVIDUAL
+    // ========================================================================
+    function actualizarEntrada(pin, estado) {
+      estadoEntradas[pin] = estado;
+      const card = document.getElementById('entrada-' + pin);
+      const estadoEl = document.getElementById('estado-' + pin);
+      const iconoEl = document.getElementById('icono-' + pin);
+
+      card.classList.remove('desconectado');
+
+      // according to sketch: 1 = FALLA, 0 = NORMAL
+      if (estado === 0) {
+        card.className = 'entrada-card normal';
+        estadoEl.textContent = 'Normal';
+        iconoEl.textContent = '🟢';
+      } else {
+        card.className = 'entrada-card falla';
+        estadoEl.textContent = '⚠ FALLA';
+        iconoEl.textContent = '🔴';
+      }
+    }
+
+    // ========================================================================
+    // ACTUALIZAR RESUMEN
+    // ========================================================================
+    function actualizarResumen() {
+      // 0 = NORMAL, 1 = FALLA
+      const ok = estadoEntradas.filter(e => e === 0).length;
+      const falla = estadoEntradas.filter(e => e === 1).length;
+      const sinDatos = estadoEntradas.filter(e => e === null || e === undefined).length;
+
+      if (sinDatos > 0) {
+        document.getElementById('entradasOk').textContent = '--';
+        document.getElementById('entradasFalla').textContent = '--';
+        document.getElementById('uptimePercent').textContent = '--';
+      } else {
+        document.getElementById('entradasOk').textContent = ok;
+        document.getElementById('entradasFalla').textContent = falla;
+        const percent = Math.round((ok / 8) * 100);
+        document.getElementById('uptimePercent').textContent = percent + '%';
+      }
+    }
+
+    // ========================================================================
+    // PONER TODAS LAS ENTRADAS EN ESTADO DESCONECTADO (gris)
+    // ========================================================================
+    function setAllEntradasDesconectado() {
+      for (let i = 0; i < 8; i++) {
+        const card = document.getElementById('entrada-' + i);
+        const estadoEl = document.getElementById('estado-' + i);
+        const iconoEl = document.getElementById('icono-' + i);
+
+        card.className = 'entrada-card desconectado';
+        estadoEl.textContent = '--';
+        iconoEl.textContent = '⚪';
+      }
+    }
+
+    // ========================================================================
+    // TOGGLE CONEXION MANUAL
+    // ========================================================================
+    function toggleConnection() {
+      conexionManual = !conexionManual;
+      
+      if (conexionManual) {
+        // Usuario quiere desconectar
+        if (mqttClient) {
+          mqttClient.end(true);
+          mqttClient = null;
+        }
+        document.getElementById('mqttLed').classList.remove('connected');
+        document.getElementById('mqttLed').classList.remove('error');
+        document.getElementById('mqttStatus').textContent = 'Desconectado (Manual)';
+        setAllEntradasDesconectado();
+      } else {
+        // Usuario quiere conectar
+        conectarMQTT();
+      }
+      
+      actualizarBotonEstado();
+    }
+
+    // ========================================================================
+    // ACTUALIZAR ESTADO DEL BOTON
+    // ========================================================================
+    function actualizarBotonEstado() {
+      const btn = document.getElementById('btnConnect');
+      if (conexionManual) {
+        btn.textContent = 'Conectar';
+        btn.classList.add('disconnect');
+      } else {
+        btn.textContent = 'Desconectar';
+        btn.classList.remove('disconnect');
+      }
+    }
+
+    // ========================================================================
+    // INICIAR CUANDO DOM ESTE LISTO
+    // ========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      // Registrar Service Worker (PWA)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+          .then(() => console.log('Service Worker registrado'));
+      }
+      init();
+    });
+  </script>
+</body>
+</html>
