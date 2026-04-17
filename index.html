@@ -393,14 +393,14 @@
     // PROCESAR MENSAJE MQTT
     // ========================================================================
     function procesarMensaje(data) {
-      // Actualizar estado de entradas (usando claves del sketch ESP32)
-      if (data.entradas) {
-        for (let i = 0; i < 8; i++) {
-          const pinKey = PIN_KEYS[i];
-          if (pinKey in data.entradas) {
-            const estado = parseInt(data.entradas[pinKey]);
-            actualizarEntrada(i, estado);
-          }
+      // Aceptar formato directo {"clave":valor} o anidado {"entradas":{"clave":valor}}
+      const datosEntradas = data.entradas || data;
+      
+      for (let i = 0; i < 8; i++) {
+        const pinKey = PIN_KEYS[i];
+        if (pinKey in datosEntradas) {
+          const estado = parseInt(datosEntradas[pinKey]);
+          actualizarEntrada(i, estado);
         }
       }
 
