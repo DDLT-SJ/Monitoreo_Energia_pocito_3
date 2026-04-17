@@ -301,7 +301,6 @@
       // Inicializar contadores en '--' (desconectado)
       document.getElementById('entradasOk').textContent = '--';
       document.getElementById('entradasFalla').textContent = '--';
-      document.getElementById('uptimePercent').textContent = '--';
     }
 
     // ========================================================================
@@ -448,12 +447,9 @@
       if (sinDatos > 0) {
         document.getElementById('entradasOk').textContent = '--';
         document.getElementById('entradasFalla').textContent = '--';
-        document.getElementById('uptimePercent').textContent = '--';
       } else {
         document.getElementById('entradasOk').textContent = ok;
         document.getElementById('entradasFalla').textContent = falla;
-        const percent = Math.round((ok / 8) * 100);
-        document.getElementById('uptimePercent').textContent = percent + '%';
       }
     }
 
